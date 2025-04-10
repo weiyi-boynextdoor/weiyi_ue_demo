@@ -30,10 +30,14 @@ static USoundWave* _CreateSoundWaveFromFile(const TArray<uint8>& RawWaveData)
     }
     else
     {
-        // For mono and stereo assets, just copy the data into the buffer
-        // Clone directly as a param so that if anyone MoveToUniques it then its a steal not a copy.
-        Sound->RawData.UpdatePayload(FSharedBuffer::Clone(RawWaveData.GetData(), RawWaveData.Num()));
+        // This code is editor only
+        // Sound->RawData.UpdatePayload(FSharedBuffer::Clone(RawWaveData.GetData(), RawWaveData.Num()));
 
+        const uint8* SampleDataStart = WaveInfo.SampleDataStart;
+        int32 SampleDataSize = WaveInfo.SampleDataSize;
+        Sound->RawPCMDataSize = SampleDataSize;
+        Sound->RawPCMData = (uint8*)FMemory::Malloc(SampleDataSize);
+        FMemory::Memcpy(Sound->RawPCMData, SampleDataStart, SampleDataSize);
     }
 
     Sound->Duration = (float)NumFrames / *WaveInfo.pSamplesPerSec;
