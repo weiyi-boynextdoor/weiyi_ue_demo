@@ -62,6 +62,7 @@ USoundWave* UMyBlueprintFunctionLibrary::CreateSoundWaveFromFile(const FString& 
         UE_LOG(LogMyExamples, Error, TEXT("Failed to load file at path: %s"), *FilePath);
         return nullptr;
     }
+    double LoadingStartTime = FPlatformTime::Seconds();
     USoundWave* SoundWave = nullptr;
     if (FilePath.ToLower().EndsWith(".wav"))
     {
@@ -79,5 +80,6 @@ USoundWave* UMyBlueprintFunctionLibrary::CreateSoundWaveFromFile(const FString& 
     {
         UE_LOG(LogMyExamples, Error, TEXT("Failed to create sound wave from file at path: %s"), *FilePath);
     }
+    UE_LOG(LogMyExamples, Log, TEXT("CreateSoundWaveFromFile in %lf seconds"), FPlatformTime::Seconds() - LoadingStartTime);
     return SoundWave;
 }
