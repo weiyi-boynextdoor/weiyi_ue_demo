@@ -3,6 +3,7 @@
 
 #include "MyBlueprintFunctionLibrary.h"
 #include "SoundFileIO/SoundFileIO.h"
+#include "Sound/SoundWaveProcedural.h"
 #include "Examples.h"
 
 // Refer to USoundFactory::CreateObject in SoundFactory.cpp
@@ -16,7 +17,7 @@ static USoundWave* _CreateSoundWaveFromFile(const TArray<uint8>& RawWaveData)
         return nullptr;
     }
 
-    USoundWave* Sound = NewObject<USoundWave>();
+    USoundWaveProcedural* Sound = NewObject<USoundWaveProcedural>();
     int32 ChannelCount = (int32)*WaveInfo.pChannels;
     check(ChannelCount >0);
     int32 SizeOfSample = (*WaveInfo.pBitsPerSample) / 8;
@@ -32,12 +33,7 @@ static USoundWave* _CreateSoundWaveFromFile(const TArray<uint8>& RawWaveData)
     {
         // This code is editor only
         // Sound->RawData.UpdatePayload(FSharedBuffer::Clone(RawWaveData.GetData(), RawWaveData.Num()));
-
-        const uint8* SampleDataStart = WaveInfo.SampleDataStart;
-        int32 SampleDataSize = WaveInfo.SampleDataSize;
-        Sound->RawPCMDataSize = SampleDataSize;
-        Sound->RawPCMData = (uint8*)FMemory::Malloc(SampleDataSize);
-        FMemory::Memcpy(Sound->RawPCMData, SampleDataStart, SampleDataSize);
+        Sound->QueueAudio(WaveInfo.SampleDataStart, WaveInfo.SampleDataSize);
     }
 
     Sound->Duration = (float)NumFrames / *WaveInfo.pSamplesPerSec;
@@ -45,15 +41,6 @@ static USoundWave* _CreateSoundWaveFromFile(const TArray<uint8>& RawWaveData)
     Sound->SetSampleRate(*WaveInfo.pSamplesPerSec);
     Sound->NumChannels = ChannelCount;
     Sound->TotalSamples = *WaveInfo.pSamplesPerSec * Sound->Duration;
-
-    // Compressed data is now out of date.
-    Sound->InvalidateCompressedData(true /* bFreeResources */);
-
-    // If stream caching is enabled, we need to make sure this asset is ready for playback.
-    if (Sound->IsStreaming(nullptr))
-    {
-        Sound->LoadZerothChunk();
-    }
 
     return Sound;
 }
