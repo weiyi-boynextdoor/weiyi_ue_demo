@@ -8,7 +8,7 @@ public class Examples : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "AudioMixer" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "AudioMixer", "RuntimeAudioImporter" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 
