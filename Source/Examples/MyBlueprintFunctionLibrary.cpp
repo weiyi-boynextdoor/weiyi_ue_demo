@@ -7,7 +7,7 @@
 #include "Examples.h"
 
 // Refer to USoundFactory::CreateObject in SoundFactory.cpp
-static USoundWave* _CreateSoundWaveFromWav(const TArray<uint8>& RawWaveData)
+static UMySoundWave* _CreateSoundWaveFromWav(const TArray<uint8>& RawWaveData)
 {
     FWaveModInfo WaveInfo;
     FString ErrorMessage;
@@ -45,7 +45,7 @@ static USoundWave* _CreateSoundWaveFromWav(const TArray<uint8>& RawWaveData)
     return Sound;
 }
 
-USoundWave* UMyBlueprintFunctionLibrary::CreateSoundWaveFromFile(const FString& FilePath)
+UMySoundWave* UMyBlueprintFunctionLibrary::CreateSoundWaveFromFile(const FString& FilePath)
 {
     TArray<uint8> FileContent;
     if (!FFileHelper::LoadFileToArray(FileContent, *FilePath))
@@ -54,7 +54,7 @@ USoundWave* UMyBlueprintFunctionLibrary::CreateSoundWaveFromFile(const FString& 
         return nullptr;
     }
     double LoadingStartTime = FPlatformTime::Seconds();
-    USoundWave* SoundWave = nullptr;
+    UMySoundWave* SoundWave = nullptr;
     if (FilePath.ToLower().EndsWith(".wav"))
     {
         SoundWave = _CreateSoundWaveFromWav(FileContent);

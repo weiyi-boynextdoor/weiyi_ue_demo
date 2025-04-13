@@ -48,7 +48,7 @@ public:
 	UMySoundWave(const FObjectInitializer& ObjectInitializer);
 
 	/** Make a copy that shares AudioBuffer **/
-	UFUNCTION()
+	UFUNCTION(BlueprintCallable)
 	UMySoundWave* MakeShallowCopy() const;
 
 	//~ Begin UObject Interface. 

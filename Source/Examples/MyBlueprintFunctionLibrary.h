@@ -17,5 +17,5 @@ class EXAMPLES_API UMyBlueprintFunctionLibrary : public UBlueprintFunctionLibrar
 
 public:
 	 UFUNCTION(BlueprintCallable, Category = "Example")
-	 static USoundWave* CreateSoundWaveFromFile(const FString& FilePath);
+	 static class UMySoundWave* CreateSoundWaveFromFile(const FString& FilePath);
 };
