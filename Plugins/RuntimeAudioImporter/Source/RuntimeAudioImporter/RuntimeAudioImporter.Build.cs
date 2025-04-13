@@ -14,7 +14,7 @@ public class RuntimeAudioImporter : ModuleRules
 		bEnableMetaSoundSupport &= (Target.Version.MajorVersion == 5 && Target.Version.MinorVersion >= 3) || Target.Version.MajorVersion > 5;
 
 		// Disable if you are not using audio input capture
-		bool bEnableCaptureInputSupport = true;
+		bool bEnableCaptureInputSupport = false; //true;
 		
 		// Disable if you are not using Voice Activity Detection
 		bool bEnableVADSupport = true;

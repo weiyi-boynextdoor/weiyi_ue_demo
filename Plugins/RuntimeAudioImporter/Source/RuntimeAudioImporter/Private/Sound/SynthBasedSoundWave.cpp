@@ -113,7 +113,9 @@ bool USynthBasedSoundWave::ToggleMute_Implementation(bool bMute)
 	{
 		if (!IsCapturing())
 		{
+#if WITH_RUNTIMEAUDIOIMPORTER_CAPTURE_SUPPORT
 			return StartCapture(LastDeviceIndex);
+#endif
 		}
 		UE_LOG(LogRuntimeAudioImporter, Error, TEXT("Unable to unmute the sound wave '%s' as it is already capturing"), *GetName());
 		return false;
