@@ -3,11 +3,11 @@
 
 #include "MyBlueprintFunctionLibrary.h"
 #include "SoundFileIO/SoundFileIO.h"
-#include "Sound/SoundWaveProcedural.h"
+#include "Sound/MySoundWave.h"
 #include "Examples.h"
 
 // Refer to USoundFactory::CreateObject in SoundFactory.cpp
-static USoundWave* _CreateSoundWaveFromFile(const TArray<uint8>& RawWaveData)
+static USoundWave* _CreateSoundWaveFromWav(const TArray<uint8>& RawWaveData)
 {
     FWaveModInfo WaveInfo;
     FString ErrorMessage;
@@ -17,7 +17,7 @@ static USoundWave* _CreateSoundWaveFromFile(const TArray<uint8>& RawWaveData)
         return nullptr;
     }
 
-    USoundWaveProcedural* Sound = NewObject<USoundWaveProcedural>();
+    UMySoundWave* Sound = NewObject<UMySoundWave>();
     int32 ChannelCount = (int32)*WaveInfo.pChannels;
     check(ChannelCount >0);
     int32 SizeOfSample = (*WaveInfo.pBitsPerSample) / 8;
@@ -57,15 +57,12 @@ USoundWave* UMyBlueprintFunctionLibrary::CreateSoundWaveFromFile(const FString& 
     USoundWave* SoundWave = nullptr;
     if (FilePath.ToLower().EndsWith(".wav"))
     {
-        SoundWave = _CreateSoundWaveFromFile(FileContent);
+        SoundWave = _CreateSoundWaveFromWav(FileContent);
     }
     else
     {
-        TArray<uint8> RawWaveData;
-        if (Audio::SoundFileUtils::ConvertAudioToWav(FileContent, RawWaveData))
-        {
-            SoundWave = _CreateSoundWaveFromFile(RawWaveData);
-        }
+        // UE runtime only supports wav or ogg
+        // Todo: add ogg support
     }
     if (!SoundWave)
     {
