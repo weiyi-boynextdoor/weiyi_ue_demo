@@ -10,7 +10,7 @@ public class Examples : ModuleRules
 	
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "AudioMixer" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "AudioExtensions" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "AudioExtensions", "VorbisAudioDecoder" });
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });

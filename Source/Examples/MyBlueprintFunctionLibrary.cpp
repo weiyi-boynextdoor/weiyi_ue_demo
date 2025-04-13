@@ -5,8 +5,9 @@
 #include "SoundFileIO/SoundFileIO.h"
 #include "Sound/MySoundWave.h"
 #include "Examples.h"
+#include "Interfaces/IAudioFormat.h"
+#include "Decoders/VorbisAudioInfo.h"
 
-// Refer to USoundFactory::CreateObject in SoundFactory.cpp
 static UMySoundWave* _CreateSoundWaveFromWav(const TArray<uint8>& RawWaveData)
 {
     FWaveModInfo WaveInfo;
@@ -19,7 +20,7 @@ static UMySoundWave* _CreateSoundWaveFromWav(const TArray<uint8>& RawWaveData)
 
     UMySoundWave* Sound = NewObject<UMySoundWave>();
     int32 ChannelCount = (int32)*WaveInfo.pChannels;
-    check(ChannelCount >0);
+    check(ChannelCount > 0);
     int32 SizeOfSample = (*WaveInfo.pBitsPerSample) / 8;
     int32 NumSamples = WaveInfo.SampleDataSize / SizeOfSample;
     int32 NumFrames = NumSamples / ChannelCount;
@@ -45,6 +46,29 @@ static UMySoundWave* _CreateSoundWaveFromWav(const TArray<uint8>& RawWaveData)
     return Sound;
 }
 
+static UMySoundWave* _CreateSoundWaveFromOgg(const TArray<uint8>& OggData)
+{
+    FVorbisAudioInfo	AudioInfo;
+    FSoundQualityInfo	QualityInfo;
+    if (!AudioInfo.ReadCompressedInfo(OggData.GetData(), OggData.Num(), &QualityInfo))
+    {
+        return nullptr;
+    }
+    TArray<uint8> PCMData;
+    PCMData.AddUninitialized(QualityInfo.SampleDataSize);
+    AudioInfo.ReadCompressedData(PCMData.GetData(), false, QualityInfo.SampleDataSize);
+    UMySoundWave* Sound = NewObject<UMySoundWave>();
+    int32 ChannelCount = QualityInfo.NumChannels;
+    check(ChannelCount > 0);
+    Sound->Duration = QualityInfo.Duration;
+    Sound->SetImportedSampleRate(QualityInfo.SampleRate);
+    Sound->SetSampleRate(QualityInfo.SampleRate);
+    Sound->NumChannels = QualityInfo.NumChannels;
+    Sound->TotalSamples = QualityInfo.Duration * QualityInfo.Duration;
+    Sound->SetAudio(PCMData.GetData(), PCMData.Num());
+    return Sound;
+}
+
 UMySoundWave* UMyBlueprintFunctionLibrary::CreateSoundWaveFromFile(const FString& FilePath)
 {
     TArray<uint8> FileContent;
@@ -59,10 +83,13 @@ UMySoundWave* UMyBlueprintFunctionLibrary::CreateSoundWaveFromFile(const FString
     {
         SoundWave = _CreateSoundWaveFromWav(FileContent);
     }
+    else if (FilePath.ToLower().EndsWith(".ogg"))
+    {
+        SoundWave = _CreateSoundWaveFromOgg(FileContent);
+    }
     else
     {
         // UE runtime only supports wav or ogg
-        // Todo: add ogg support
     }
     if (!SoundWave)
     {
