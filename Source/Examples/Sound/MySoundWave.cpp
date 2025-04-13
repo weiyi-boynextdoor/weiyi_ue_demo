@@ -13,7 +13,6 @@ UMySoundWave::UMySoundWave(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	bProcedural = true;
-	bReset = false;
 	NumBufferUnderrunSamples = 512;
 	NumSamplesToGeneratePerCallback = DEFAULT_PROCEDURAL_SOUNDWAVE_BUFFER_SIZE;
 	static_assert(DEFAULT_PROCEDURAL_SOUNDWAVE_BUFFER_SIZE >= 512, "Should generate more samples than this per callback.");
@@ -27,7 +26,7 @@ UMySoundWave::UMySoundWave(const FObjectInitializer& ObjectInitializer)
 
 }
 
-void UMySoundWave::QueueAudio(const uint8* AudioData, const int32 BufferSize)
+void UMySoundWave::SetAudio(const uint8* AudioData, const int32 BufferSize)
 {
 	Audio::EAudioMixerStreamDataFormat::Type Format = GetGeneratedPCMDataFormat();
 	SampleByteSize = (Format == Audio::EAudioMixerStreamDataFormat::Int16) ? 2 : 4;
@@ -37,68 +36,54 @@ void UMySoundWave::QueueAudio(const uint8* AudioData, const int32 BufferSize)
 		return;
 	}
 
-	TArray<uint8> NewAudioBuffer;
-	NewAudioBuffer.AddUninitialized(BufferSize);
-	FMemory::Memcpy(NewAudioBuffer.GetData(), AudioData, BufferSize);
-	QueuedAudio.Enqueue(MoveTemp(NewAudioBuffer));
+	{
+		FWriteScopeLock WriteLock(AudioLock);
+		if (!AudioBuffer)
+		{
+			AudioBuffer = MakeShared<TArray<uint8>>();
+		}
+		AudioBuffer->AddUninitialized(BufferSize);
+		FMemory::Memcpy(AudioBuffer->GetData(), AudioData, BufferSize);
+	}
 
 	AvailableByteCount.Add(BufferSize);
 }
 
-void UMySoundWave::PumpQueuedAudio()
-{
-	// Pump the enqueued audio
-	TArray<uint8> NewQueuedBuffer;
-	while (QueuedAudio.Dequeue(NewQueuedBuffer))
-	{
-		AudioBuffer.Append(NewQueuedBuffer);
-	}
-}
-
 int32 UMySoundWave::GeneratePCMData(uint8* PCMData, const int32 SamplesNeeded)
 {
-	// Check if we've been told to reset our audio buffer
-	if (bReset)
+	FReadScopeLock ReadLock(AudioLock);
+	if (!AudioBuffer)
 	{
-		bReset = false;
-		AudioBuffer.Reset();
-		AvailableByteCount.Reset();
+		return 0;
 	}
+	auto& AudioBufferRef = *AudioBuffer;
 
 	Audio::EAudioMixerStreamDataFormat::Type Format = GetGeneratedPCMDataFormat();
 	SampleByteSize = (Format == Audio::EAudioMixerStreamDataFormat::Int16) ? 2 : 4;
 
-	int32 SamplesAvailable = AudioBuffer.Num() / SampleByteSize;
+	int32 SamplesAvailable = AudioBufferRef.Num() / SampleByteSize;
 	int32 SamplesToGenerate = FMath::Min(NumSamplesToGeneratePerCallback, SamplesNeeded);
 
 	check(SamplesToGenerate >= NumBufferUnderrunSamples);
-
-	bool bPumpQueuedAudio = true;
 
 	if (SamplesAvailable < SamplesToGenerate)
 	{
 		// First try to use the virtual function which assumes we're writing directly into our audio buffer
 		// since we're calling from the audio render thread.
-		int32 NumSamplesGenerated = OnGeneratePCMAudio(AudioBuffer, SamplesToGenerate);
+		int32 NumSamplesGenerated = OnGeneratePCMAudio(AudioBufferRef, SamplesToGenerate);
 		if (NumSamplesGenerated > 0)
 		{
 			// Shrink the audio buffer size to the actual number of samples generated
 			const int32 BytesGenerated = NumSamplesGenerated * SampleByteSize;
-			ensureAlwaysMsgf(BytesGenerated <= AudioBuffer.Num(), TEXT("Soundwave Procedural generated more bytes than expected (%d generated, %d expected)"), BytesGenerated, AudioBuffer.Num());
-			if (BytesGenerated < AudioBuffer.Num())
+			ensureAlwaysMsgf(BytesGenerated <= AudioBufferRef.Num(), TEXT("MySoundwave generated more bytes than expected (%d generated, %d expected)"), BytesGenerated, AudioBufferRef.Num());
+			if (BytesGenerated < AudioBufferRef.Num())
 			{
-				AudioBuffer.SetNum(BytesGenerated, EAllowShrinking::No);
+				AudioBufferRef.SetNum(BytesGenerated, EAllowShrinking::No);
 			}
-			bPumpQueuedAudio = false;
 		}
 	}
 
-	if (bPumpQueuedAudio)
-	{
-		PumpQueuedAudio();
-	}
-
-	SamplesAvailable = AudioBuffer.Num() / SampleByteSize;
+	SamplesAvailable = AudioBufferRef.Num() / SampleByteSize;
 
 	// Wait until we have enough samples that are requested before starting.
 	if (SamplesAvailable > 0)
@@ -106,14 +91,8 @@ int32 UMySoundWave::GeneratePCMData(uint8* PCMData, const int32 SamplesNeeded)
 		const int32 SamplesToCopy = FMath::Min<int32>(SamplesToGenerate, SamplesAvailable);
 		const int32 BytesToCopy = SamplesToCopy * SampleByteSize;
 
-		FMemory::Memcpy((void*)PCMData, &AudioBuffer[0], BytesToCopy);
-		AudioBuffer.RemoveAt(0, BytesToCopy, EAllowShrinking::No);
-
-		// Decrease the available by count
-		if (bPumpQueuedAudio)
-		{
-			AvailableByteCount.Subtract(BytesToCopy);
-		}
+		FMemory::Memcpy((void*)PCMData, &AudioBufferRef[0], BytesToCopy);
+		AudioBufferRef.RemoveAt(0, BytesToCopy, EAllowShrinking::No);
 
 		return BytesToCopy;
 	}
@@ -122,20 +101,6 @@ int32 UMySoundWave::GeneratePCMData(uint8* PCMData, const int32 SamplesNeeded)
 	const int32 BytesCopied = NumBufferUnderrunSamples * SampleByteSize;
 	FMemory::Memzero(PCMData, BytesCopied);
 	return BytesCopied;
-}
-
-void UMySoundWave::ResetAudio()
-{
-	// Empty out any enqueued audio buffers
-	QueuedAudio.Empty();
-
-	// Flag that we need to reset our audio buffer (on the audio thread)
-	bReset = true;
-}
-
-int32 UMySoundWave::GetAvailableAudioByteCount()
-{
-	return AvailableByteCount.GetValue();
 }
 
 int32 UMySoundWave::GetResourceSizeForFormat(FName Format)

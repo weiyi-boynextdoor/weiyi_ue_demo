@@ -33,7 +33,7 @@ static USoundWave* _CreateSoundWaveFromWav(const TArray<uint8>& RawWaveData)
     {
         // This code is editor only
         // Sound->RawData.UpdatePayload(FSharedBuffer::Clone(RawWaveData.GetData(), RawWaveData.Num()));
-        Sound->QueueAudio(WaveInfo.SampleDataStart, WaveInfo.SampleDataSize);
+        Sound->SetAudio(WaveInfo.SampleDataStart, WaveInfo.SampleDataSize);
     }
 
     Sound->Duration = (float)NumFrames / *WaveInfo.pSamplesPerSec;
