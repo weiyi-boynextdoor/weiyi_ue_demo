@@ -31,6 +31,8 @@ private:
 	// The actual audio buffer that can be consumed. QueuedAudio is fed to this buffer. Accessed only audio thread.
 	TSharedPtr<TArray<uint8>> AudioBuffer;
 
+	uint32_t SampleIndex;
+
 protected:
 
 	// Number of samples to pad with 0 if there isn't enough audio available
@@ -44,6 +46,10 @@ protected:
 
 public:
 	UMySoundWave(const FObjectInitializer& ObjectInitializer);
+
+	/** Make a copy that shares AudioBuffer **/
+	UFUNCTION()
+	UMySoundWave* MakeShallowCopy() const;
 
 	//~ Begin UObject Interface. 
 	virtual void Serialize( FArchive& Ar ) override;
@@ -63,12 +69,10 @@ public:
 	virtual bool IsSeekable() const override { return false; }
 	//~ End USoundWave Interface.
 
-	// Virtual function to generate PCM audio from the audio render thread. 
-	// Returns number of samples generated
-	virtual int32 OnGeneratePCMAudio(TArray<uint8>& OutAudio, int32 NumSamples) { return 0; }
-
 	/** Set AudioBuffer data */
 	void SetAudio(const uint8* AudioData, const int32 BufferSize);
+
+	void Seek(uint32_t Index);
 
 	/** Size in bytes of a single sample of audio in the procedural audio buffer. */
 	int32 SampleByteSize;

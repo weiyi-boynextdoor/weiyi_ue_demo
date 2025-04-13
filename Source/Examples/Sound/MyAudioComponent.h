@@ -13,5 +13,7 @@ UCLASS(ClassGroup = (Audio, Common), HideCategories = (Object, ActorComponent, P
 class UMyAudioComponent : public UAudioComponent
 {
 	GENERATED_BODY()
-	
+
+public:
+	virtual void Play(float StartTime = 0.0f) override;
 };
