@@ -8,14 +8,30 @@
 #include "Interfaces/IAudioFormat.h"
 #include "Decoders/VorbisAudioInfo.h"
 
-static UMySoundWave* _CreateSoundWaveFromWav(const TArray<uint8>& RawWaveData)
+struct FMySoundWaveInfo
+{
+    int32 SampleRate;
+    int32 NumChannels;
+    int32 NumSamples;
+    float Duration;
+    float TotalSamples;
+    TArray<uint8> PCMData;
+
+    FMySoundWaveInfo() = default;
+    FMySoundWaveInfo(const FMySoundWaveInfo& Other) = default;
+    FMySoundWaveInfo(FMySoundWaveInfo&& Other) = default;
+    FMySoundWaveInfo& operator=(const FMySoundWaveInfo& Other) = default;
+    FMySoundWaveInfo& operator=(FMySoundWaveInfo&& Other) = default;
+};
+
+static bool GetSoundWaveInfoFromWav(FMySoundWaveInfo& Info, TArray<uint8> RawWaveData)
 {
     FWaveModInfo WaveInfo;
     FString ErrorMessage;
     if (!WaveInfo.ReadWaveInfo(RawWaveData.GetData(), RawWaveData.Num(), &ErrorMessage))
     {
         UE_LOG(LogMyExamples, Error, TEXT("Unable to read wave file - \"%s\""), *ErrorMessage);
-        return nullptr;
+        return false;
     }
 
     UMySoundWave* Sound = NewObject<UMySoundWave>();
@@ -25,76 +41,82 @@ static UMySoundWave* _CreateSoundWaveFromWav(const TArray<uint8>& RawWaveData)
     int32 NumSamples = WaveInfo.SampleDataSize / SizeOfSample;
     int32 NumFrames = NumSamples / ChannelCount;
 
-    if (ChannelCount > 2)
-    {
-        UE_LOG(LogMyExamples, Error, TEXT("Wave file has unsupported number of channels %d"), ChannelCount);
-        return nullptr;
-    }
-    else
-    {
-        // This code is editor only
-        // Sound->RawData.UpdatePayload(FSharedBuffer::Clone(RawWaveData.GetData(), RawWaveData.Num()));
-        Sound->SetAudio(WaveInfo.SampleDataStart, WaveInfo.SampleDataSize);
-    }
+	Info.SampleRate = *WaveInfo.pSamplesPerSec;
+    Info.Duration = (float)NumFrames / *WaveInfo.pSamplesPerSec;
+	Info.NumChannels = ChannelCount;
+	Info.TotalSamples = *WaveInfo.pSamplesPerSec * Sound->Duration;
+    Info.PCMData = MoveTemp(RawWaveData);
 
-    Sound->Duration = (float)NumFrames / *WaveInfo.pSamplesPerSec;
-    Sound->SetImportedSampleRate(*WaveInfo.pSamplesPerSec);
-    Sound->SetSampleRate(*WaveInfo.pSamplesPerSec);
-    Sound->NumChannels = ChannelCount;
-    Sound->TotalSamples = *WaveInfo.pSamplesPerSec * Sound->Duration;
-
-    return Sound;
+    return true;
 }
 
-static UMySoundWave* _CreateSoundWaveFromOgg(const TArray<uint8>& OggData)
+static bool GetSoundWaveInfoFromOgg(FMySoundWaveInfo& Info, const TArray<uint8>& OggData)
 {
     FVorbisAudioInfo	AudioInfo;
     FSoundQualityInfo	QualityInfo;
     if (!AudioInfo.ReadCompressedInfo(OggData.GetData(), OggData.Num(), &QualityInfo))
     {
-        return nullptr;
+        return false;
     }
     TArray<uint8> PCMData;
     PCMData.AddUninitialized(QualityInfo.SampleDataSize);
     AudioInfo.ReadCompressedData(PCMData.GetData(), false, QualityInfo.SampleDataSize);
-    UMySoundWave* Sound = NewObject<UMySoundWave>();
-    int32 ChannelCount = QualityInfo.NumChannels;
-    check(ChannelCount > 0);
-    Sound->Duration = QualityInfo.Duration;
-    Sound->SetImportedSampleRate(QualityInfo.SampleRate);
-    Sound->SetSampleRate(QualityInfo.SampleRate);
-    Sound->NumChannels = QualityInfo.NumChannels;
-    Sound->TotalSamples = QualityInfo.Duration * QualityInfo.Duration;
-    Sound->SetAudio(PCMData.GetData(), PCMData.Num());
-    return Sound;
+
+    Info.SampleRate = QualityInfo.SampleRate;
+    Info.Duration = QualityInfo.Duration;
+    Info.NumChannels = QualityInfo.NumChannels;
+    Info.TotalSamples = QualityInfo.Duration * QualityInfo.Duration;
+    Info.PCMData = MoveTemp(PCMData);
+    return true;
 }
 
-UMySoundWave* UMyBlueprintFunctionLibrary::CreateSoundWaveFromFile(const FString& FilePath)
+void UMyBlueprintFunctionLibrary::CreateSoundWaveFromFile(const FString& FilePath, const FOnSoundWaveDelegate& SoundWaveCallback)
 {
-    TArray<uint8> FileContent;
-    if (!FFileHelper::LoadFileToArray(FileContent, *FilePath))
-    {
-        UE_LOG(LogMyExamples, Error, TEXT("Failed to load file at path: %s"), *FilePath);
-        return nullptr;
-    }
-    double LoadingStartTime = FPlatformTime::Seconds();
-    UMySoundWave* SoundWave = nullptr;
-    if (FilePath.ToLower().EndsWith(".wav"))
-    {
-        SoundWave = _CreateSoundWaveFromWav(FileContent);
-    }
-    else if (FilePath.ToLower().EndsWith(".ogg"))
-    {
-        SoundWave = _CreateSoundWaveFromOgg(FileContent);
-    }
-    else
-    {
-        // UE runtime only supports wav or ogg
-    }
-    if (!SoundWave)
-    {
-        UE_LOG(LogMyExamples, Error, TEXT("Failed to create sound wave from file at path: %s"), *FilePath);
-    }
-    UE_LOG(LogMyExamples, Log, TEXT("CreateSoundWaveFromFile in %lf seconds"), FPlatformTime::Seconds() - LoadingStartTime);
-    return SoundWave;
+	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [FilePath, SoundWaveCallback]()
+		{
+            TArray<uint8> FileContent;
+            if (!FFileHelper::LoadFileToArray(FileContent, *FilePath))
+            {
+                UE_LOG(LogMyExamples, Error, TEXT("Failed to load file at path: %s"), *FilePath);
+                return;
+            }
+            double LoadingStartTime = FPlatformTime::Seconds();
+            bool bSuccess = false;
+            FMySoundWaveInfo SoundWaveInfo;
+            if (FilePath.ToLower().EndsWith(".wav"))
+            {
+				if (GetSoundWaveInfoFromWav(SoundWaveInfo, FileContent))
+				{
+					bSuccess = true;
+				}
+            }
+            else if (FilePath.ToLower().EndsWith(".ogg"))
+            {
+				if (GetSoundWaveInfoFromOgg(SoundWaveInfo, FileContent))
+				{
+					bSuccess = true;
+				}
+            }
+            else
+            {
+                // UE runtime only supports wav or ogg
+            }
+            AsyncTask(ENamedThreads::GameThread, [SoundWaveCallback, bSuccess, SoundWaveInfo, FilePath]()
+                {
+                    if (!bSuccess)
+                    {
+                        UE_LOG(LogMyExamples, Error, TEXT("Failed to create sound wave from file at path: %s"), *FilePath);
+                        SoundWaveCallback.ExecuteIfBound(nullptr);
+                        return;
+                    }
+                    UMySoundWave* SoundWave = NewObject<UMySoundWave>();
+                    SoundWave->SetAudio(SoundWaveInfo.PCMData);
+                    SoundWave->Duration = SoundWaveInfo.Duration;
+                    SoundWave->SetImportedSampleRate(SoundWaveInfo.SampleRate);
+                    SoundWave->SetSampleRate(SoundWaveInfo.SampleRate);
+                    SoundWave->NumChannels = SoundWaveInfo.NumChannels;
+                    SoundWave->TotalSamples = SoundWaveInfo.TotalSamples;
+					SoundWaveCallback.ExecuteIfBound(SoundWave);
+                });
+		});
 }

@@ -4,12 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
-#include "Sound/SoundWave.h"
+#include "Sound/MySoundWave.h"
 #include "MyBlueprintFunctionLibrary.generated.h"
 
-/**
- * 
- */
+
+DECLARE_DYNAMIC_DELEGATE_OneParam(FOnSoundWaveDelegate, UMySoundWave*, SoundWave);
+
 UCLASS()
 class EXAMPLES_API UMyBlueprintFunctionLibrary : public UBlueprintFunctionLibrary
 {
@@ -17,5 +17,5 @@ class EXAMPLES_API UMyBlueprintFunctionLibrary : public UBlueprintFunctionLibrar
 
 public:
 	 UFUNCTION(BlueprintCallable, Category = "Example")
-	 static class UMySoundWave* CreateSoundWaveFromFile(const FString& FilePath);
+	 static void CreateSoundWaveFromFile(const FString& FilePath, const FOnSoundWaveDelegate& SoundWaveCallback);
 };

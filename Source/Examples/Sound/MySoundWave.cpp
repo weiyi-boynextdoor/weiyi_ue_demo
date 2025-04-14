@@ -36,11 +36,12 @@ UMySoundWave* UMySoundWave::MakeShallowCopy() const
 	return NewSoundWave;
 }
 
-void UMySoundWave::SetAudio(const uint8* AudioData, const int32 BufferSize)
+void UMySoundWave::SetAudio(TArray<uint8> PCMData)
 {
 	Audio::EAudioMixerStreamDataFormat::Type Format = GetGeneratedPCMDataFormat();
 	SampleByteSize = (Format == Audio::EAudioMixerStreamDataFormat::Int16) ? 2 : 4;
 
+	auto BufferSize = PCMData.Num();
 	if (BufferSize == 0 || !ensure((BufferSize % SampleByteSize) == 0))
 	{
 		return;
@@ -48,12 +49,7 @@ void UMySoundWave::SetAudio(const uint8* AudioData, const int32 BufferSize)
 
 	{
 		FWriteScopeLock WriteLock(AudioLock);
-		if (!AudioBuffer)
-		{
-			AudioBuffer = MakeShared<TArray<uint8>>();
-		}
-		AudioBuffer->AddUninitialized(BufferSize);
-		FMemory::Memcpy(AudioBuffer->GetData(), AudioData, BufferSize);
+		AudioBuffer = MakeShared<TArray<uint8>>(MoveTemp(PCMData));
 	}
 
 	AvailableByteCount.Add(BufferSize);

@@ -70,7 +70,7 @@ public:
 	//~ End USoundWave Interface.
 
 	/** Set AudioBuffer data */
-	void SetAudio(const uint8* AudioData, const int32 BufferSize);
+	void SetAudio(TArray<uint8> PCMData);
 
 	void Seek(uint32_t Index);
 
