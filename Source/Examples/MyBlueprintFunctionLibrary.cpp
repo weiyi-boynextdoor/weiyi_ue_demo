@@ -34,7 +34,6 @@ static bool GetSoundWaveInfoFromWav(FMySoundWaveInfo& Info, TArray<uint8> RawWav
         return false;
     }
 
-    UMySoundWave* Sound = NewObject<UMySoundWave>();
     int32 ChannelCount = (int32)*WaveInfo.pChannels;
     check(ChannelCount > 0);
     int32 SizeOfSample = (*WaveInfo.pBitsPerSample) / 8;
@@ -44,7 +43,7 @@ static bool GetSoundWaveInfoFromWav(FMySoundWaveInfo& Info, TArray<uint8> RawWav
 	Info.SampleRate = *WaveInfo.pSamplesPerSec;
     Info.Duration = (float)NumFrames / *WaveInfo.pSamplesPerSec;
 	Info.NumChannels = ChannelCount;
-	Info.TotalSamples = *WaveInfo.pSamplesPerSec * Sound->Duration;
+	Info.TotalSamples = *WaveInfo.pSamplesPerSec * Info.Duration;
     Info.PCMData = MoveTemp(RawWaveData);
 
     return true;
