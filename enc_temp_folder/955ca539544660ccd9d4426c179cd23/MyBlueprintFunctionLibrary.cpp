@@ -44,8 +44,7 @@ static bool GetSoundWaveInfoFromWav(FMySoundWaveInfo& Info, TArray<uint8> RawWav
     Info.Duration = (float)NumFrames / *WaveInfo.pSamplesPerSec;
 	Info.NumChannels = ChannelCount;
 	Info.TotalSamples = *WaveInfo.pSamplesPerSec * Info.Duration;
-    Info.PCMData.AddUninitialized(WaveInfo.SampleDataSize);
-    FMemory::Memcpy(Info.PCMData.GetData(), WaveInfo.SampleDataStart, WaveInfo.SampleDataSize);
+    Info.PCMData = MoveTemp(RawWaveData);
 
     return true;
 }
